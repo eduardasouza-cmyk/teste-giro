@@ -2362,7 +2362,7 @@ calcContrato();   // renderiza tudo zerado
           usuario_nome: _au.nome || null,
           usuario_email: _au.email || null,
           time: _au.team || null
-        }).then(function(){}, function(){});
+        }).then(function(r){ if(r && r.error) console.error('[giro][supabase] erro ao gravar:', r.error); }, function(e){ console.error('[giro][supabase] falha na requisicao:', e); });
       }
     } catch(e){}
 
@@ -2566,7 +2566,7 @@ calcContrato();   // renderiza tudo zerado
           usuario_id: _au.id || null,
           usuario_nome: _au.nome || null,
           usuario_email: _au.email || null
-        }).then(function(){}, function(){});
+        }).then(function(r){ if(r && r.error) console.error('[giro][supabase] erro ao gravar:', r.error); }, function(e){ console.error('[giro][supabase] falha na requisicao:', e); });
       }
     } catch(e){}
 
@@ -2652,7 +2652,7 @@ calcContrato();   // renderiza tudo zerado
           usuario_id: _au.id || null,
           usuario_nome: _au.nome || null,
           usuario_email: _au.email || null
-        }).then(function(){}, function(){});
+        }).then(function(r){ if(r && r.error) console.error('[giro][supabase] erro ao gravar:', r.error); }, function(e){ console.error('[giro][supabase] falha na requisicao:', e); });
       }
     } catch(e){}
     return _gerarPDF.apply(this, arguments);
