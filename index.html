@@ -1610,6 +1610,10 @@ function gerarPDF(tipo){
   const now = new Date().toLocaleDateString('pt-BR');
   const nomes = { contrato:'Contrato', comparar:'Comparativo', desconto:'Desconto', simulador:'Simulador' };
   const sufixo = (tipo === 'desconto') ? (S.descIncluiContrato ? 'Contrato-Desconto' : 'Desconto') : nomes[tipo];
+  if(window.giroLog){
+    var CALC_NOMES = { contrato:'Cálculo do contrato', comparar:'Comparar planos', desconto:'Simulador de desconto', simulador:'Simulador de prazo personalizado' };
+    window.giroLog('calc_comercial', { calculadora: CALC_NOMES[tipo] || tipo, equipe: S.team });
+  }
   doc.save(`GiroRapido_${sufixo}_${th.name}_${now.replace(/\//g,'-')}.pdf`);
 }
 
@@ -1868,6 +1872,19 @@ calcContrato();   // renderiza tudo zerado
   const SUPABASE_KEY = 'sb_publishable_5pPocHO75LBzNb7O8rFalw_dB45d4-1';
   const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   window.giroDB = db; // reaproveitado depois para registrar histórico
+
+  // Função central de registro de histórico ("quem fez o quê").
+  // Nunca trava o app: se falhar, apenas avisa no console.
+  window.giroLog = function(tabela, dados){
+    try {
+      var a = window.giroAuth;
+      if(!a || !window.giroDB) return;
+      var linha = Object.assign({}, dados, { usuario_id: a.id, usuario_nome: a.nome });
+      window.giroDB.from(tabela).insert(linha).then(function(r){
+        if(r && r.error) console.warn('giroLog', tabela, r.error.message);
+      });
+    } catch(e){ /* silencioso */ }
+  };
 
   // ┌──────────────────────────────────────────────────────────────┐
   // │  PRÉ-ATRIBUIÇÃO DE ÁREA PARA E-MAILS VINDI (opcional)          │
@@ -2345,26 +2362,8 @@ calcContrato();   // renderiza tudo zerado
     $g('ap-r-iof').textContent = brl(iof);
 
     historico.push({ cnpj, data:nowStr(), des, fee, pix:PIX, iof, total });
+    if(window.giroLog) window.giroLog('aportes', { cnpj:cnpj, desembolso:des, fee:fee, pix:PIX, iof:iof, total:total });
     renderTabela();
-
-    // ── rastreabilidade: grava o aporte no Supabase ──
-    try {
-      var _db = window.giroDB, _au = window.giroAuth || {};
-      if(_db){
-        _db.from('aportes').insert({
-          cnpj: cnpj,
-          desembolso: des,
-          fee: fee,
-          pix: PIX,
-          iof: iof,
-          total: total,
-          usuario_id: _au.id || null,
-          usuario_nome: _au.nome || null,
-          usuario_email: _au.email || null,
-          time: _au.team || null
-        }).then(function(r){ if(r && r.error) console.error('[giro][supabase] erro ao gravar:', r.error); }, function(e){ console.error('[giro][supabase] falha na requisicao:', e); });
-      }
-    } catch(e){}
 
     $g('ap-cnpj').value=''; $g('ap-des').value=''; $g('ap-prin').value='';
     $g('ap-cnpj').focus();
@@ -2554,22 +2553,10 @@ calcContrato();   // renderiza tudo zerado
     var arr = MATERIAIS[team] || [];
     var m = null; for(var i=0;i<arr.length;i++){ if(arr[i].id===id){ m=arr[i]; break; } }
     if(!m) return;
-
-    // ── rastreabilidade: registra o download no Supabase ──
-    try {
-      var _db = window.giroDB, _au = window.giroAuth || {};
-      if(_db){
-        _db.from('materiais').insert({
-          lamina: m.titulo,
-          lamina_id: m.id,
-          time: team,
-          usuario_id: _au.id || null,
-          usuario_nome: _au.nome || null,
-          usuario_email: _au.email || null
-        }).then(function(r){ if(r && r.error) console.error('[giro][supabase] erro ao gravar:', r.error); }, function(e){ console.error('[giro][supabase] falha na requisicao:', e); });
-      }
-    } catch(e){}
-
+    if(window.giroLog){
+      var LAMINA_NOMES = { 'como-funciona':'Como funciona', 'carencia':'Carência', 'pos-venda':'Pós-venda' };
+      window.giroLog('materiais', { lamina: LAMINA_NOMES[id] || m.titulo, equipe: team });
+    }
     var a = document.createElement('a');
     a.href = m.img; a.download = m.file;
     document.body.appendChild(a); a.click(); a.remove();
@@ -2624,40 +2611,6 @@ calcContrato();   // renderiza tudo zerado
   layout((window.giroAuth && window.giroAuth.area) || document.body.dataset.area || 'comercial');
 })();
 
-</script>
-<!-- ═════ RASTREABILIDADE — PDFs gerados pelas calculadoras do Comercial ═════ -->
-<script id="giro-log-pdf-script">
-// ════════════════ MÓDULO RASTREABILIDADE — log de PDFs no Supabase ════════════════
-(function(){
-  'use strict';
-  var _gerarPDF = window.gerarPDF;
-  if(typeof _gerarPDF !== 'function') return;
-
-  var NOMES = {
-    contrato:  'Cálculo do contrato',
-    comparar:  'Comparar planos',
-    desconto:  'Simulador de desconto',
-    simulador: 'Simulador de prazo personalizado'
-  };
-
-  window.gerarPDF = function(tipo){
-    try {
-      var _db = window.giroDB, _au = window.giroAuth || {};
-      // "time" = empresa/identidade atual da tela (vindi, tray ou bling)
-      var _team = (typeof S !== 'undefined' && S && S.team) ? S.team : (_au.team || null);
-      if(_db){
-        _db.from('calc_comercial').insert({
-          calculadora: NOMES[tipo] || tipo,
-          time: _team,
-          usuario_id: _au.id || null,
-          usuario_nome: _au.nome || null,
-          usuario_email: _au.email || null
-        }).then(function(r){ if(r && r.error) console.error('[giro][supabase] erro ao gravar:', r.error); }, function(e){ console.error('[giro][supabase] falha na requisicao:', e); });
-      }
-    } catch(e){}
-    return _gerarPDF.apply(this, arguments);
-  };
-})();
 </script>
 </body>
 </html>
