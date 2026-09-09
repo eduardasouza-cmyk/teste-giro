@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Giro Rápido · Simulador</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700;900&family=Sora:wght@300;400;600&family=Zalando+Sans:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/auth.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<!-- ══════════ GATE DE ACESSO (adicionado, não altera o que já existia) ══════════ -->
+<div class="auth-gate" id="auth-gate" role="dialog" aria-modal="true" aria-label="Acesso ao Giro Rápido">
+  <div class="auth-card">
+    <div class="auth-head">
+      <div class="auth-brand">
+        <img id="auth-logo" alt="">
+        <span class="auth-brand-fallback" id="auth-brand-fallback">Giro Rápido</span>
+      </div>
+      <div class="auth-eyebrow">Giro Rápido · Acesso</div>
+    </div>
+
+    <div class="auth-identity" id="auth-identity" hidden>
+      <span class="auth-idlabel">Identidade</span>
+      <span class="auth-idvalue" id="auth-idnome">—</span>
+      <span class="auth-iddot" id="auth-idsep" hidden>·</span>
+      <span class="auth-idlabel" id="auth-idarealabel" hidden>Área</span>
+      <span class="auth-idvalue" id="auth-idarea" hidden>—</span>
+    </div>
+
+    <!-- LOGIN -->
+    <form class="auth-form" id="auth-login" autocomplete="off" hidden>
+      <h2>Entrar</h2>
+      <div class="auth-field">
+        <label for="login-email">E-mail corporativo</label>
+        <input type="email" id="login-email" placeholder="voce@vindi.com.br" autocomplete="off">
+      </div>
+      <div class="auth-field">
+        <label for="login-senha">Senha</label>
+        <input type="password" id="login-senha" placeholder="Sua senha" autocomplete="off">
+      </div>
+      <div class="auth-erro" id="login-erro" hidden></div>
+      <button type="submit" class="auth-btn">Entrar</button>
+      <p class="auth-switch">Não tem conta? <a href="#" id="to-cadastro">Criar cadastro</a></p>
+      <p class="auth-switch"><a href="#" id="to-reset">Esqueci minha senha</a></p>
+    </form>
+
+    <!-- CADASTRO -->
+    <form class="auth-form" id="auth-cadastro" autocomplete="off" hidden>
+      <h2>Criar cadastro</h2>
+      <div class="auth-field">
+        <label for="cad-nome">Nome de usuário</label>
+        <input type="text" id="cad-nome" placeholder="Seu nome" autocomplete="off">
+      </div>
+      <div class="auth-field">
+        <label for="cad-email">E-mail corporativo</label>
+        <input type="email" id="cad-email" placeholder="voce@vindi.com.br" autocomplete="off">
+        <span class="auth-hint" id="cad-email-hint">E-mails aceitos: @vindi.com.br, @tray.net.br, @bling.com.br</span>
+      </div>
+
+      <div class="auth-field" id="cad-area-wrap" hidden>
+        <label>Sua área na Vindi</label>
+        <div class="auth-seg" id="cad-area-seg">
+          <button type="button" data-area="comercial">Comercial</button>
+          <button type="button" data-area="mesa">Mesa</button>
+        </div>
+      </div>
+      <div class="auth-locked" id="cad-area-locked" hidden></div>
+
+      <div class="auth-field">
+        <label for="cad-senha">Senha</label>
+        <input type="password" id="cad-senha" placeholder="Mínimo 6 caracteres" autocomplete="off">
+      </div>
+      <div class="auth-field">
+        <label for="cad-senha2">Confirmar senha</label>
+        <input type="password" id="cad-senha2" placeholder="Repita a senha" autocomplete="off">
+      </div>
+      <div class="auth-erro" id="cad-erro" hidden></div>
+      <button type="submit" class="auth-btn">Criar cadastro e entrar</button>
+      <p class="auth-switch">Já tem conta? <a href="#" id="to-login">Entrar</a></p>
+    </form>
+
+    <!-- RECUPERAR SENHA (pedir o e-mail) -->
+    <form class="auth-form" id="auth-reset" autocomplete="off" hidden>
+      <h2>Recuperar senha</h2>
+      <div class="auth-locked" hidden id="reset-locked"></div>
+      <div class="auth-field">
+        <label for="reset-email">E-mail corporativo</label>
+        <input type="email" id="reset-email" placeholder="voce@vindi.com.br" autocomplete="off">
+        <span class="auth-hint">Enviaremos um link para você criar uma nova senha. O link vale por 1 hora e só pode ser usado uma vez.</span>
+      </div>
+      <div class="auth-erro" id="reset-erro" hidden></div>
+      <button type="submit" class="auth-btn">Enviar link de recuperação</button>
+      <p class="auth-switch">Lembrou a senha? <a href="#" id="reset-to-login">Voltar para o login</a></p>
+    </form>
+
+    <!-- DEFINIR NOVA SENHA (chegou pelo link do e-mail) -->
+    <form class="auth-form" id="auth-nova" autocomplete="off" hidden>
+      <h2>Definir nova senha</h2>
+      <div class="auth-locked" id="nova-quem" hidden></div>
+      <div class="auth-field">
+        <label for="nova-senha">Nova senha</label>
+        <input type="password" id="nova-senha" placeholder="Mínimo 6 caracteres" autocomplete="off">
+      </div>
+      <div class="auth-field">
+        <label for="nova-senha2">Confirmar nova senha</label>
+        <input type="password" id="nova-senha2" placeholder="Repita a nova senha" autocomplete="off">
+      </div>
+      <div class="auth-erro" id="nova-erro" hidden></div>
+      <button type="submit" class="auth-btn">Salvar nova senha e entrar</button>
+      <p class="auth-switch"><a href="#" id="nova-to-login">Cancelar</a></p>
+    </form>
+
+    <div class="auth-foot" id="auth-foot"></div>
+  </div>
+</div>
+
+<!-- ══════════ PAINEL DE ADMINISTRAÇÃO (adicionado) ══════════ -->
+<div class="modal-overlay" id="admin-panel">
+  <div class="admin-box">
+    <div class="admin-head">
+      <div>
+        <div class="admin-title">Administração</div>
+        <div class="admin-subtitle">Dê ou remova acesso de admin.</div>
+      </div>
+      <button class="admin-close" id="admin-close" type="button" aria-label="Fechar">&times;</button>
+    </div>
+
+    <div class="admin-section">
+      <h4>Dar acesso de admin</h4>
+      <div class="admin-add">
+        <input type="email" id="admin-add-email" placeholder="pessoa@vindi.com.br" autocomplete="off">
+        <button class="admin-add-btn" id="admin-add-btn" type="button">Dar admin</button>
+      </div>
+      <div class="admin-erro" id="admin-add-erro" hidden></div>
+      <p class="admin-note">Vale para @vindi.com.br, @tray.net.br ou @bling.com.br. Funciona mesmo se a pessoa ainda não tiver cadastro — o acesso passa a valer quando ela entrar.</p>
+    </div>
+
+    <div class="admin-section">
+      <h4>Administradores</h4>
+      <div class="adm-list" id="admin-list"></div>
+    </div>
+
+    <div class="admin-section">
+      <h4>Pessoas cadastradas</h4>
+      <div class="adm-list" id="admin-users"></div>
+    </div>
+  </div>
+</div>
+
+<header class="topbar">
+  <div class="brand">
+    <img id="brand-logo" alt="Logo" src="">
+    <span class="brand-fallback" id="brand-fallback">Vindi</span>
+  </div>
+  <div class="switch">
+    <span class="switch-label">Empresa</span>
+    <div class="seg" id="company-seg">
+      <button data-team="bling" onclick="setTeam('bling')">Bling</button>
+      <button data-team="tray"  onclick="setTeam('tray')">Tray</button>
+      <button data-team="vindi" class="on" onclick="setTeam('vindi')">Vindi</button>
+    </div>
+  </div>
+</header>
+
+<section class="hero">
+  <img class="hero-mark" id="hero-mark" alt="" src="">
+  <div class="hero-eyebrow">Simulador</div>
+  <h1 class="hero-title">Giro Rápido</h1>
+  <div class="hero-rule"></div>
+</section>
+
+<div class="wrap">
+
+  <div class="theme-banner" id="theme-banner">
+    Tema <b id="theme-banner-name">—</b> em definição — usando uma paleta provisória. Envie a identidade visual (cores, fontes e logo) para personalizarmos como fizemos com a Vindi.
+  </div>
+
+  <!-- BLOCO 1 — CONTRATO -->
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>Cálculo do contrato</h2>
+        <p>Valor que entra na conta, custo total e condições do contrato.</p>
+      </div>
+      <div class="head-actions">
+        <button class="btn-ajustes" id="btn-ajustes" onclick="abrirModalAjustes()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span id="btn-ajustes-txt">Ajustes avançados</span>
+        </button>
+        <button class="btn-pdf" onclick="gerarPDF('contrato')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          PDF
+        </button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="pdf-opts">
+        <span class="pdf-opts-label">Mostrar no PDF</span>
+        <label><input type="checkbox" data-pdf="taxa"  checked onchange="setPdfInclude(this)"> Taxa de juros</label>
+        <label><input type="checkbox" data-pdf="cetAm" checked onchange="setPdfInclude(this)"> CET a.m.</label>
+        <label><input type="checkbox" data-pdf="cetAa" checked onchange="setPdfInclude(this)"> CET a.a.</label>
+      </div>
+      <div class="fields">
+        <div class="field">
+          <label for="c-liberado">Valor liberado — o que entra na conta</label>
+          <div class="input-wrap has-prefix">
+            <span class="input-prefix">R$</span>
+            <input type="number" id="c-liberado" placeholder="0,00" oninput="calcContrato()">
+          </div>
+        </div>
+        <div class="field" id="field-taxa">
+          <label for="c-taxa">Taxa mensal</label>
+          <select id="c-taxa" onchange="calcContrato()">
+            <option value="5.0" selected>5,0% ao mês</option>
+            <option value="4.5">4,5% ao mês</option>
+            <option value="4.0">4,0% ao mês</option>
+            <option value="3.5">3,5% ao mês</option>
+            <option value="3.0">3,0% ao mês</option>
+            <option value="2.5" id="opt-taxa-25" hidden disabled>2,5% ao mês 🔒</option>
+          </select>
+        </div>
+        <div class="field" id="field-carencia">
+          <label for="c-carencia">Carência (dias) <span class="lock-badge">🔒</span></label>
+          <div class="input-wrap has-suffix">
+            <span class="input-suffix">dias</span>
+            <input type="number" id="c-carencia" value="30" min="0" max="120" step="1" disabled oninput="setCarencia(this.value)">
+          </div>
+        </div>
+      </div>
+
+      <div class="seg-label">Prazo</div>
+      <div class="pills" id="prazo-pills">
+        <button class="pill" onclick="setPrazo(90,this)">90 dias</button>
+        <button class="pill" onclick="setPrazo(120,this)">120 dias</button>
+        <button class="pill on" onclick="setPrazo(150,this)">150 dias</button>
+        <button class="pill" onclick="setPrazo(180,this)">180 dias</button>
+      </div>
+
+      <div class="hl-stack">
+        <div class="hl hero-fill">
+          <div class="hl-label">Valor liberado</div>
+          <div class="hl-value" id="hl-lib">R$ 0,00</div>
+          <div class="hl-sub">Dinheiro que entra na conta</div>
+        </div>
+        <div class="hl-pair">
+          <div class="hl">
+            <div class="hl-label">Taxa de juros</div>
+            <div class="hl-value v-key" id="hl-taxa">0,00%</div>
+            <div class="hl-sub">ao mês aplicada</div>
+          </div>
+          <div class="hl">
+            <div class="hl-label">Vencimento</div>
+            <div class="hl-value" id="hl-prazo">150 dias</div>
+            <div class="hl-sub">Prazo total do contrato</div>
+          </div>
+        </div>
+        <div class="hl">
+          <div class="hl-label">Valor total do contrato</div>
+          <div class="hl-value v-key" id="hl-tot">R$ 0,00</div>
+          <div class="hl-sub" id="hl-tot-sub">Custo total: R$ 0,00</div>
+        </div>
+      </div>
+
+      <div class="chips" id="c-chips"></div>
+
+      <div class="res-grid">
+        <div class="rc">
+          <div class="rc-label">Valor financiado</div>
+          <div class="rc-value v-ink" id="rc-principal">R$ 0,00</div>
+          <div class="rc-sub" id="rc-iof">Imposto (IOF): R$ 0,00</div>
+        </div>
+        <div class="rc">
+          <div class="rc-label">Valor dos juros</div>
+          <div class="rc-value v-ink" id="rc-juros">R$ 0,00</div>
+          <div class="rc-sub">Total do contrato − valor liberado</div>
+        </div>
+        <div class="rc">
+          <div class="rc-label">CET ao ano</div>
+          <div class="rc-value v-accent" id="rc-cetaa">0,00%</div>
+          <div class="rc-sub">Custo Efetivo Total: juros + impostos</div>
+        </div>
+        <div class="rc">
+          <div class="rc-label">CET ao mês</div>
+          <div class="rc-value v-accent" id="rc-cetam">0,00%</div>
+          <div class="rc-sub">Custo Efetivo Total: juros + impostos</div>
+        </div>
+        <div class="rc">
+          <div class="rc-label">Carência</div>
+          <div class="rc-value v-ink" id="rc-car">30 dias</div>
+          <div class="rc-sub">Dias corridos sem cobrança</div>
+        </div>
+        <div class="rc">
+          <div class="rc-label">Tempo de pagamento</div>
+          <div class="rc-value v-key" id="rc-amort">120 dias</div>
+          <div class="rc-sub">Dias corridos de pagamento</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BLOCO 1b — COMPARAR (v3: bandeira x vencimento) -->
+  <div class="card" id="cmp3">
+    <div class="card-head">
+      <div>
+        <h2>Comparar planos</h2>
+        <p>Escolha as bandeiras e os vencimentos. A taxa é a mesma nas duas bandeiras — o que muda é o valor liberado, editável em cada coluna.</p>
+      </div>
+      <button class="btn-pdf" type="button" id="cmp3-pdf">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        PDF do cliente
+      </button>
+    </div>
+    <div class="card-body">
+
+      <div class="bar" id="cmp3-bar">
+        <div class="grp">
+          <span class="grp-label">Bandeira</span>
+          <button class="chip on" type="button" data-band="master"><span class="fd master"></span>Mastercard</button>
+          <button class="chip on" type="button" data-band="visa"><span class="fd visa"></span>Visa</button>
+        </div>
+        <div class="grp">
+          <span class="grp-label">Vencimento</span>
+          <button class="chip" type="button" data-prazo="90">90</button>
+          <button class="chip on" type="button" data-prazo="120">120</button>
+          <button class="chip on" type="button" data-prazo="150">150</button>
+          <button class="chip" type="button" data-prazo="180">180</button>
+        </div>
+        <div class="grp taxa-inline">
+          <span class="grp-label">Taxa</span>
+          <select id="cmp3-taxa">
+            <option value="5.0" selected>5,0% ao mês</option><option value="4.5">4,5% ao mês</option>
+            <option value="4.0">4,0% ao mês</option><option value="3.5">3,5% ao mês</option>
+            <option value="3.0">3,0% ao mês</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="cmp3-empty" class="cmp3-msg">Escolha ao menos uma bandeira e um vencimento.</div>
+      <div id="cmp3-sheet" class="sheet" style="display:none"><table id="cmp3-tbl"></table></div>
+
+      <div class="extra">
+        <label><input type="checkbox" id="cmp3-cet" checked> Mostrar CET</label>
+        <label><input type="checkbox" id="cmp3-ret" checked> Mostrar retenção diária</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- BLOCO 2 — DESCONTO -->
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>Simulador de desconto</h2>
+        <p>Quanto o cliente economiza ao pagar diariamente com as vendas.</p>
+      </div>
+      <button class="btn-pdf" onclick="gerarPDF('desconto')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        PDF
+      </button>
+    </div>
+    <div class="card-body">
+      <div class="pdf-opts">
+        <span class="pdf-opts-label">PDF de desconto</span>
+        <label><input type="checkbox" id="d-inc-contrato" checked onchange="setDescContrato(this)"> Incluir o cálculo do contrato</label>
+      </div>
+      <p class="hint">O pagamento é feito por uma retenção diária sobre as vendas. Cada dia de pagamento reduz o saldo, com incidência de juros — o cliente quita antes do vencimento e recebe um <strong style="color:var(--primary);font-weight:600">desconto</strong> proporcional.</p>
+
+      <div id="d-plano-hint" style="display:none;margin-bottom:18px;padding:11px 14px;background:color-mix(in srgb,var(--primary) 6%,transparent);border:1px solid color-mix(in srgb,var(--primary) 20%,transparent);border-radius:10px;font-size:12.5px;color:var(--muted)">
+        Usando dados do contrato acima: <span id="d-plano-desc" style="color:var(--primary);font-weight:600"></span>
+      </div>
+
+      <div class="fields">
+        <div class="field">
+          <label for="d-fat">Faturamento mensal médio</label>
+          <div class="input-wrap has-prefix"><span class="input-prefix">R$</span>
+            <input type="number" id="d-fat" placeholder="0,00" oninput="calcDesconto()"></div>
+        </div>
+        <div class="field">
+          <label for="d-ret">% retido do faturamento</label>
+          <div class="input-wrap has-suffix"><span class="input-suffix">%</span>
+            <input type="number" id="d-ret" placeholder="0" step="0.5" oninput="calcDesconto()"></div>
+        </div>
+        <div class="field">
+          <label for="d-lib">Valor liberado</label>
+          <div class="input-wrap has-prefix"><span class="input-prefix">R$</span>
+            <input type="number" id="d-lib" placeholder="auto do bloco acima" oninput="calcDesconto()"></div>
+        </div>
+        <div class="field">
+          <label for="d-dvt">Valor total do contrato</label>
+          <div class="input-wrap has-prefix"><span class="input-prefix">R$</span>
+            <input type="number" id="d-dvt" placeholder="auto do bloco acima" oninput="calcDesconto()"></div>
+        </div>
+      </div>
+
+      <div class="hl-stack">
+        <div class="hl-pair" style="grid-template-columns:1fr 1fr 1fr">
+          <div class="hl">
+            <div class="hl-label">Valor do contrato</div>
+            <div class="hl-value v-key" id="d-hl-dvt">R$ 0,00</div>
+            <div class="hl-sub">Total a pagar sem desconto</div>
+          </div>
+          <div class="hl">
+            <div class="hl-label">Valor total pago</div>
+            <div class="hl-value v-ink" id="d-prazo">R$ 0,00</div>
+            <div class="hl-sub" id="d-prazo-sub">Com desconto</div>
+          </div>
+          <div class="hl hero-fill">
+            <div class="hl-label">Desconto obtido</div>
+            <div class="hl-value" id="d-desconto">R$ 0,00</div>
+            <div class="hl-sub" id="d-desconto-sub">Economia do cliente</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="res-grid">
+        <div class="rc">
+          <div class="rc-label">Prazo de quitação</div>
+          <div class="rc-value v-key" id="d-dias-quit">0 dias</div>
+          <div class="rc-sub" id="d-dias-quit-sub">dias corridos (incl. carência)</div>
+        </div>
+        <div class="rc">
+          <div class="rc-label">Valor total pago</div>
+          <div class="rc-value v-ink" id="d-val-pago">R$ 0,00</div>
+          <div class="rc-sub" id="d-val-pago-sub">—</div>
+        </div>
+        <div class="rc">
+          <div class="rc-label">Retido por dia</div>
+          <div class="rc-value v-accent" id="d-vrd-exib">R$ 0,00</div>
+          <div class="rc-sub">Faturamento ÷ 30 × % retido</div>
+        </div>
+        <div class="rc">
+          <div class="rc-label">Retido por dia útil</div>
+          <div class="rc-value v-accent" id="d-vrd-du-exib">R$ 0,00</div>
+          <div class="rc-sub">Faturamento ÷ 22 × % retido</div>
+        </div>
+      </div>
+
+      <div class="note">
+        <div class="note-title">Uso interno — não divulgar prazo exato</div>
+        <div class="note-body">O prazo de quitação é estimado pelo faturamento médio. Apresente sempre como "aproximadamente X dias". O desconto real pode variar conforme o volume diário de vendas.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BLOCO 3 — SIMULADOR DE PRAZO -->
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>Simulador de prazo personalizado</h2>
+        <p>Usa o contrato acima. O valor retido por dia é fixo — igual todos os dias.</p>
+      </div>
+      <button class="btn-pdf" onclick="gerarPDF('simulador')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        PDF
+      </button>
+    </div>
+    <div class="card-body">
+      <p class="hint">A barra vai do mínimo até o prazo do contrato. O desconto mostra o ganho ao quitar antes do vencimento.</p>
+
+      <div id="s-contrato-hint" class="inline-hint" style="display:none">Calcule um contrato no primeiro bloco para ativar este simulador.</div>
+
+      <div id="s-body">
+        <div class="seg-label">Em quantos dias o cliente quer quitar? <span id="s-carencia-hint" style="text-transform:none;letter-spacing:0">(inclui 30d de carência — mín. 31)</span></div>
+        <div class="range-wrap">
+          <input type="range" class="range" id="s-range" min="31" max="180" step="1" value="90"
+            oninput="document.getElementById('s-val').textContent=this.value+' dias';calcSim()">
+          <div class="range-val" id="s-val">90 dias</div>
+        </div>
+
+        <div class="hl-stack">
+          <div class="hl-pair" style="grid-template-columns:1fr 1fr 1fr">
+            <div class="hl">
+              <div class="hl-label">Dias de pagamento</div>
+              <div class="hl-value v-accent" id="s-dias-amort">0 dias</div>
+              <div class="hl-sub" id="s-dias-sub">—</div>
+            </div>
+            <div class="hl">
+              <div class="hl-label">Valor retido por dia</div>
+              <div class="hl-value v-ink" id="s-vrd">R$ 0,00</div>
+              <div class="hl-sub">Igual todos os dias</div>
+            </div>
+            <div class="hl hero-fill">
+              <div class="hl-label">Desconto (valor de hoje)</div>
+              <div class="hl-value" id="s-vp-desc">R$ 0,00</div>
+              <div class="hl-sub" id="s-vp-sub">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="res-grid" style="margin-bottom:18px">
+          <div class="rc">
+            <div class="rc-label">Total pago</div>
+            <div class="rc-value v-ink" id="s-saldo">R$ 0,00</div>
+            <div class="rc-sub">Retido por dia × dias de pagamento</div>
+          </div>
+          <div class="rc">
+            <div class="rc-label">Desconto total</div>
+            <div class="rc-value v-key" id="s-desc-nom">R$ 0,00</div>
+            <div class="rc-sub">Valor do contrato − total pago</div>
+          </div>
+          <div class="rc">
+            <div class="rc-label">Equivalente por mês</div>
+            <div class="rc-value v-accent" id="s-vrd-mes">R$ 0,00</div>
+            <div class="rc-sub">Equivalente mensal</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<!-- MODAL — ajustes protegidos por senha -->
+<div class="modal-overlay" id="modal-ajustes">
+  <div class="modal-box">
+    <div class="modal-lock">🔒</div>
+    <h3>Ajustes protegidos</h3>
+    <p>A taxa de <b>2,5% ao mês</b> e a <b>alteração de carência</b> são restritas. Informe a senha para liberar.</p>
+    <input type="password" id="modal-senha" placeholder="Senha" autocomplete="off" onkeydown="if(event.key==='Enter')confirmarSenha()">
+    <div class="modal-erro" id="modal-erro" style="display:none">Senha incorreta. Tente novamente.</div>
+    <div class="modal-actions">
+      <button class="modal-btn ghost" onclick="fecharModalAjustes()">Cancelar</button>
+      <button class="modal-btn solid" onclick="confirmarSenha()">Liberar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════ DADOS (arquivos gerados, não editar à mão) ═════════════ -->
+<script src="js/data/logos.js"></script>
+<script src="js/data/materiais.js"></script>
+
+<!-- ═════════════ MÓDULOS ═════════════ -->
+<script src="js/app-core.js"></script>            <!-- temas, cálculo, PDF, INIT -->
+<script src="js/mesa-limite.js"></script>         <!-- gate de acesso / definição de limite -->
+<script src="js/mesa-aporte.js"></script>         <!-- calculadora de aporte -->
+<script src="js/mesa-menu.js"></script>           <!-- menu sanduíche da Mesa -->
+<script src="js/comercial-materiais.js"></script> <!-- lâminas para o cliente -->
+<script src="js/comparador-v3.js"></script>       <!-- comparador bandeira x vencimento -->
+
+</body>
+</html>
